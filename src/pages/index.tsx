@@ -1,12 +1,40 @@
+import { useEffect, useMemo, useState } from "react";
 import { type NextPage } from "next";
 import Head from "next/head";
-import Link from "next/link";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { GoogleMap, useLoadScript } from "@react-google-maps/api";
 
 import { api } from "../utils/api";
 
 const Home: NextPage = () => {
+  const libraries = useMemo<["places", "drawing", "visualization"]>(
+    () => ["places", "drawing", "visualization"],
+    []
+  );
+  const [viewType, setViewType] = useState<"list" | "map">("list");
+  const [location, setLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  }>();
+
   const blocos = api.bloco.getAll.useQuery();
+
+  const handleViewTypeChange = () => {
+    setViewType((prev) => (prev === "list" ? "map" : "list"));
+  };
+
+  const { isLoaded } = useLoadScript({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY as string,
+    libraries,
+  });
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(({ coords }) => {
+        const { latitude, longitude } = coords;
+        setLocation({ latitude, longitude });
+      });
+    }
+  }, []);
 
   return (
     <>
@@ -20,20 +48,37 @@ const Home: NextPage = () => {
           Blocos de rua Carnaval SP{" "}
           <span className="text-[hsl(280,100%,70%)]">2023</span>
         </h1>
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16 max-w-3xl w-full ">
-          <div className="flex flex-col items-center gap-4 w-full">
-            <fieldset className="flex flex-col w-full justify-center">
-              <legend className="text-white ml-2 mb-2">Pesquise o nome bloco</legend>
-              <input type="text" className="bg-white/10 w-full rounded-full px-4 py-2 text-white" placeholder="Ex: A praça é nossa" />
+        <div className="container flex w-full max-w-3xl flex-col items-center justify-center gap-12 px-4 py-16 ">
+          <div className="flex w-full flex-col items-center gap-4">
+            <fieldset className="flex w-full flex-col justify-center">
+              <legend className="ml-2 mb-2 text-white">
+                Pesquise o nome bloco
+              </legend>
+              <input
+                type="text"
+                className="w-full rounded-full bg-white/10 px-4 py-2 text-white"
+                placeholder="Ex: A praça é nossa"
+              />
             </fieldset>
-            <fieldset className="flex flex-col w-full justify-center">
-              <legend className="text-white ml-2 mb-2">Data do bloco</legend>
-              <input type="date" className="bg-white/10 rounded-full px-4 py-2 text-white" placeholder="Data" />
+            <fieldset className="flex w-full flex-col justify-center">
+              <legend className="ml-2 mb-2 text-white">Data do bloco</legend>
+              <input
+                type="date"
+                className="rounded-full bg-white/10 px-4 py-2 text-white"
+                placeholder="Data"
+              />
             </fieldset>
           </div>
-          <div className="flex flex-col items-center gap-2 w-full">
-            {blocos.data
-              ? blocos.data.map((bloco) => (
+          <div>
+            <span>Mudar visualização</span>
+            <button onClick={handleViewTypeChange}>
+              {viewType === "list" ? "Mapa" : "Lista"}
+            </button>
+          </div>
+          <div className="flex w-full flex-col items-center gap-2">
+            {viewType === "list" ? (
+              blocos.data ? (
+                blocos.data.map((bloco) => (
                   <div
                     className="flex w-full flex-col gap-4 rounded-xl bg-white/10 p-4 text-white hover:bg-white/20"
                     key={bloco.id}
@@ -42,7 +87,27 @@ const Home: NextPage = () => {
                     <p>{bloco.route}</p>
                   </div>
                 ))
-              : "Carregando..."}
+              ) : (
+                "Carregando..."
+              )
+            ) : isLoaded ? (
+              <GoogleMap
+                options={{
+                  disableDefaultUI: true,
+                  clickableIcons: true,
+                  scrollwheel: false,
+                }}
+                zoom={14}
+                center={{ lat: -23.550185626143133, lng: -46.63333728849464 }}
+                mapTypeId={google.maps.MapTypeId.ROADMAP}
+                mapContainerStyle={{ width: "800px", height: "800px" }}
+                onLoad={() => console.log("Map Component Loaded...")}
+              />
+            ) : (
+              <>
+                <h1>Carregando mapa...</h1>
+              </>
+            )}
           </div>
         </div>
       </main>
@@ -52,26 +117,26 @@ const Home: NextPage = () => {
 
 export default Home;
 
-const AuthShowcase: React.FC = () => {
-  const { data: sessionData } = useSession();
+// const AuthShowcase: React.FC = () => {
+//   const { data: sessionData } = useSession();
 
-  const { data: secretMessage } = api.example.getSecretMessage.useQuery(
-    undefined, // no input
-    { enabled: sessionData?.user !== undefined }
-  );
+//   const { data: secretMessage } = api.example.getSecretMessage.useQuery(
+//     undefined, // no input
+//     { enabled: sessionData?.user !== undefined }
+//   );
 
-  return (
-    <div className="flex flex-col items-center justify-center gap-4">
-      <p className="text-center text-2xl text-white">
-        {sessionData && <span>Logged in as {sessionData.user?.name}</span>}
-        {secretMessage && <span> - {secretMessage}</span>}
-      </p>
-      <button
-        className="rounded-full bg-white/10 px-10 py-3 font-semibold text-white no-underline transition hover:bg-white/20"
-        onClick={sessionData ? () => void signOut() : () => void signIn()}
-      >
-        {sessionData ? "Sign out" : "Sign in"}
-      </button>
-    </div>
-  );
-};
+//   return (
+//     <div className="flex flex-col items-center justify-center gap-4">
+//       <p className="text-center text-2xl text-white">
+//         {sessionData && <span>Logged in as {sessionData.user?.name}</span>}
+//         {secretMessage && <span> - {secretMessage}</span>}
+//       </p>
+//       <button
+//         className="rounded-full bg-white/10 px-10 py-3 font-semibold text-white no-underline transition hover:bg-white/20"
+//         onClick={sessionData ? () => void signOut() : () => void signIn()}
+//       >
+//         {sessionData ? "Sign out" : "Sign in"}
+//       </button>
+//     </div>
+//   );
+// };
